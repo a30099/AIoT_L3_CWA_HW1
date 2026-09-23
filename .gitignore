@@ -1,0 +1,24 @@
+# 環境變數與機密資訊
+.env
+.env.local
+
+# Python 虛擬環境與快取
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 本地資料庫
+data.db
+*.sqlite3
+
+# 前端依賴與構建產物
+node_modules/
+dist/
+.next/
+.cache/
+
+# 系統檔案
+.DS_Store
+Thumbs.db
