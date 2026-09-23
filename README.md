@@ -1,14 +1,26 @@
 # Taiwan CWA Weather Forecast & Temperature Visualization
 > **中央氣象署 (CWA) 氣象資料觀測與即時氣溫視覺化平台**  
-> 整合 CWA OpenData API × FastAPI × Windy Map API × Leaflet
+> 整合 CWA OpenData API × SQLite × Streamlit × Folium (HW10 Gate 1 ~ 5 全數完成)
 
-本專案依據專案規格書與作業指引建置，旨在從中央氣象署開放資料平台（CWA OpenData）取得臺灣即時氣象觀測與氣溫預報資料，經過後端資料清洗、正規化與快取後，透過現代化地圖（Windy Map Forecast API + Leaflet）與互動介面進行視覺化展示。
+---
+
+## 📸 系統運行展示 (Dashboard Showcase)
+
+### 📈 1. 全臺各分區氣溫走勢與相對濕度分析 (Gate 4)
+![氣溫與相對濕度圖表分析](assets/dashboard_charts.png)
+
+### 🗺️ 2. 臺灣各區互動式氣象地圖與 4 階色階標記 (Gate 5 加分項)
+![臺灣各區互動式氣象地圖](assets/dashboard_map.png)
+
+### 📋 3. 測站完整數據表格與即時關鍵字搜尋 (Gate 4)
+![測站詳細數據清單](assets/dashboard_table.png)
 
 ---
 
 ## 目錄 (Table of Contents)
+- [📸 系統運行展示 (Dashboard Showcase)](#-系統運行展示-dashboard-showcase)
 - [專案簡介 (Overview)](#專案簡介-overview)
-- [目前開發成果 (Current Milestones: Gate 1 ~ 4 全數完成)](#目前開發成果-current-milestones-gate-1--4-全數完成)
+- [目前開發成果 (Current Milestones: Gate 1 ~ 5 全數完成)](#目前開發成果-current-milestones-gate-1--5-全數完成)
 - [核心功能 (Key Features)](#核心功能-key-features)
 - [系統架構 (Architecture)](#系統架構-architecture)
 - [核心技術決策 (Technical Decisions)](#核心技術決策-technical-decisions)
@@ -91,10 +103,16 @@
     * 相對濕度分析長條圖：清晰展示各測站相對濕度百分比（滿足老師「**溫度+濕度**」雙核心要求）。
   * **詳細數據表格 (評分 15%)**：提供測站即時數據列表、關鍵字搜尋（依測站或縣市快速篩選），並支援一鍵匯出下載 CSV。
   * **核心指標卡片 (Metric Cards)**：即時統計該區域之觀測站總數、平均氣溫、平均濕度與該區最高溫測站。
-  * **[Bonus 加分項] 互動式臺灣地圖視覺化**：
-    * 整合 `folium` 與 `streamlit-folium` 渲染互動式地圖。
-    * 依老師投影片規範之 4 級氣溫色階渲染標記（藍色 `<20°C`、綠色 `20~25°C`、黃色 `25~30°C`、紅色 `>30°C`）。
-    * 點擊任一測站標記即彈窗顯示站名、行政區、即時氣溫、相對濕度與觀測時間戳記。
+
+### ✅ Gate 5：臺灣互動地圖視覺化 (進階加分項 - 完成度: 100%)
+* **實作技術**：`folium` + `streamlit-folium` (整合於 [`app.py`](file:///c:/Users/user/Desktop/0923_HW1/app.py) 第三分頁)
+* **實作亮點與評分要求**：
+  * **六大分區平均氣溫總覽 (完全符合老師投影片標準樣式)**：
+    * 動態計算北部、中部、南部、東北部、東部、東南部之中心座標與平均氣溫。
+    * 嚴格依老師 4 階色階標記圓點：🔵 `<20°C` (藍)、🟢 `20~25°C` (綠)、🟡 `25~30°C` (黃)、🔴 `>30°C` (紅)。
+    * 標記上方直接疊加地圖文字標籤（例如：`中部地區 27.9°C`）。
+    * 點擊標記彈出規格卡片：精確顯示分區名稱、觀測日期、平均溫度、平均濕度、該區最低溫與最高溫。
+  * **雙層模式切換**：可即時切換「六大分區平均氣溫總覽」與「全臺 336 站測站詳細氣溫標記」，兼具微觀測站與宏觀分區分析。
 
 ---
 

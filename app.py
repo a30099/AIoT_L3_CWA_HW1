@@ -236,57 +236,151 @@ with tab_table:
     )
 
 
-# ==================== Tab 3: 臺灣地圖視覺化 (Bonus 加分項) ====================
+def load_region_summary():
+    """從 SQLite 計算六大分區之中心座標、平均氣溫、平均濕度、最低/最高溫與測站數"""
+    conn = sqlite3.connect(DB_PATH)
+    query = """
+    SELECT 
+        regionName,
+        AVG(lat) as centerLat,
+        AVG(lon) as centerLon,
+        ROUND(AVG(temperature), 1) as avgTemp,
+        ROUND(AVG(humidity), 1) as avgHumidity,
+        ROUND(MIN(minT), 1) as minT,
+        ROUND(MAX(maxT), 1) as maxT,
+        COUNT(*) as stationCount,
+        MAX(dataDate) as dataDate
+    FROM TemperatureForecasts
+    GROUP BY regionName
+    ORDER BY avgTemp DESC;
+    """
+    df_summary = pd.read_sql_query(query, conn)
+    conn.close()
+    return df_summary
+
+
+# ==================== Tab 3: 臺灣地圖視覺化 (Gate 5 加分項) ====================
 with tab_map:
-    st.subheader("🗺️ 臺灣各區互動式氣象觀測地圖")
+    st.subheader("🗺️ 臺灣各區互動式氣象地圖 (Gate 5 進階加分項)")
     st.markdown("""
-    **溫度色階指標**：  
+    **溫度色階指標規範**：  
     🔵 **藍色**：`< 20°C` (涼冷) ｜ 🟢 **綠色**：`20°C – 25°C` (舒適) ｜ 🟡 **黃色**：`25°C – 30°C` (偏暖) ｜ 🔴 **紅色**：`> 30°C` (炎熱)
     """)
 
     if not HAS_FOLIUM:
         st.warning("⚠️ 尚未偵測到 `folium` 套件，地圖功能暫不可用。")
     else:
-        # 計算地圖中心
-        center_lat = df["lat"].mean() if not df.empty else 23.7
-        center_lon = df["lon"].mean() if not df.empty else 121.0
-        zoom_level = 8 if selected_region != "全臺總覽" else 7
-
-        m = folium.Map(
-            location=[center_lat, center_lon],
-            zoom_start=zoom_level,
-            tiles="OpenStreetMap"
+        # 切換顯示層級
+        map_mode = st.radio(
+            "📍 請選擇地圖顯示層級：",
+            options=["六大分區平均氣溫總覽 (老師投影片標準樣式)", "當前選取區域測站詳細標記"],
+            horizontal=True
         )
 
-        # 繪製各測站圓點標記
-        for _, row in df.iterrows():
-            if pd.isna(row["lat"]) or pd.isna(row["lon"]):
-                continue
+        if map_mode == "六大分區平均氣溫總覽 (老師投影片標準樣式)":
+            df_regions = load_region_summary()
+            
+            # 以臺灣中心為基準
+            m = folium.Map(
+                location=[23.7, 121.0],
+                zoom_start=7,
+                tiles="OpenStreetMap"
+            )
 
-            color, label = get_temperature_color(row["temperature"])
+            for _, r in df_regions.iterrows():
+                color, label = get_temperature_color(r["avgTemp"])
+                
+                # 投影片風格 Popup 卡片
+                popup_html = f"""
+                <div style="font-family: sans-serif; font-size: 13px; line-height: 1.6; min-width: 170px;">
+                    <h4 style="margin: 0 0 6px 0; color: #2b6cb0; border-bottom: 2px solid #e2e8f0; padding-bottom: 4px;">{r['regionName']}</h4>
+                    📅 <b>日期</b>: {r['dataDate']}<br/>
+                    🌡️ <b>平均溫度</b>: <span style="color: {color}; font-size: 15px; font-weight: bold;">{r['avgTemp']} °C</span><br/>
+                    💧 <b>平均濕度</b>: {r['avgHumidity']} %<br/>
+                    📉 <b>最低溫 (Min)</b>: {r['minT']} °C<br/>
+                    📈 <b>最高溫 (Max)</b>: {r['maxT']} °C<br/>
+                    📊 <b>觀測站數</b>: {r['stationCount']} 站
+                </div>
+                """
 
-            popup_html = f"""
-            <div style="font-family: sans-serif; font-size: 13px; line-height: 1.5;">
-                <b style="font-size: 15px; color: #2b6cb0;">{row['stationName']}</b> ({row['countyName']} {row['townName']})<br/>
-                <hr style="margin: 4px 0;"/>
-                🌡️ <b>即時氣溫</b>: <span style="color: {color}; font-weight: bold;">{row['temperature']} °C</span><br/>
-                💧 <b>相對濕度</b>: {row['humidity']} %<br/>
-                📉 <b>最低/最高</b>: {row['minT']} ~ {row['maxT']} °C<br/>
-                🕒 <b>觀測時間</b>: {row['obsTime']}<br/>
-            </div>
-            """
+                # 繪製區域代表性大圓標記
+                folium.CircleMarker(
+                    location=[r["centerLat"], r["centerLon"]],
+                    radius=16,
+                    popup=folium.Popup(popup_html, max_width=260),
+                    tooltip=f"{r['regionName']}: 平均溫 {r['avgTemp']}°C (點擊查看詳細)",
+                    color="#ffffff",
+                    weight=2,
+                    fill=True,
+                    fill_color=color,
+                    fill_opacity=0.9
+                ).add_to(m)
 
-            folium.CircleMarker(
-                location=[row["lat"], row["lon"]],
-                radius=6,
-                popup=folium.Popup(popup_html, max_width=250),
-                tooltip=f"{row['stationName']}: {row['temperature']}°C / {row['humidity']}%",
-                color="#ffffff",
-                weight=1,
-                fill=True,
-                fill_color=color,
-                fill_opacity=0.85
-            ).add_to(m)
+                # 在地圖標記旁顯示分區名稱與平均溫度標籤
+                folium.Marker(
+                    location=[r["centerLat"], r["centerLon"]],
+                    icon=folium.DivIcon(
+                        icon_size=(100, 30),
+                        icon_anchor=(50, -10),
+                        html=f'<div style="font-size: 12px; font-weight: bold; color: #1a202c; text-shadow: 1px 1px 2px white; text-align: center;">{r["regionName"]}<br><span style="color:{color};">{r["avgTemp"]}°C</span></div>'
+                    )
+                ).add_to(m)
 
-        # 渲染地圖
-        st_folium(m, width="100%", height=550)
+            st_folium(m, width="stretch", height=560)
+
+            # 額外附帶六大分區平均氣象數據一覽表
+            st.markdown("#### 📊 全臺各分區平均氣象數據一覽表")
+            summary_display = df_regions[["regionName", "stationCount", "avgTemp", "avgHumidity", "minT", "maxT"]].rename(
+                columns={
+                    "regionName": "地理分區",
+                    "stationCount": "測站數量",
+                    "avgTemp": "平均氣溫 (°C)",
+                    "avgHumidity": "平均相對濕度 (%)",
+                    "minT": "分區最低溫 (°C)",
+                    "maxT": "分區最高溫 (°C)"
+                }
+            )
+            st.dataframe(summary_display, width="stretch", hide_index=True)
+
+        else:
+            # 當前選取區域測站詳細標記模式
+            center_lat = df["lat"].mean() if not df.empty else 23.7
+            center_lon = df["lon"].mean() if not df.empty else 121.0
+            zoom_level = 8 if selected_region != "全臺總覽" else 7
+
+            m = folium.Map(
+                location=[center_lat, center_lon],
+                zoom_start=zoom_level,
+                tiles="OpenStreetMap"
+            )
+
+            for _, row in df.iterrows():
+                if pd.isna(row["lat"]) or pd.isna(row["lon"]):
+                    continue
+
+                color, label = get_temperature_color(row["temperature"])
+
+                popup_html = f"""
+                <div style="font-family: sans-serif; font-size: 13px; line-height: 1.5; min-width: 150px;">
+                    <b style="font-size: 15px; color: #2b6cb0;">{row['stationName']}</b> ({row['countyName']} {row['townName']})<br/>
+                    <hr style="margin: 4px 0;"/>
+                    🌡️ <b>即時氣溫</b>: <span style="color: {color}; font-weight: bold;">{row['temperature']} °C</span><br/>
+                    💧 <b>相對濕度</b>: {row['humidity']} %<br/>
+                    📉 <b>最低/最高</b>: {row['minT']} ~ {row['maxT']} °C<br/>
+                    🕒 <b>觀測時間</b>: {row['obsTime']}<br/>
+                </div>
+                """
+
+                folium.CircleMarker(
+                    location=[row["lat"], row["lon"]],
+                    radius=7,
+                    popup=folium.Popup(popup_html, max_width=250),
+                    tooltip=f"{row['stationName']}: {row['temperature']}°C / {row['humidity']}%",
+                    color="#ffffff",
+                    weight=1,
+                    fill=True,
+                    fill_color=color,
+                    fill_opacity=0.85
+                ).add_to(m)
+
+            st_folium(m, width="stretch", height=560)

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>臺灣即時氣象預報與觀測儀表板 | CWA Weather Dashboard</title>
+  <meta name="description" content="中央氣象署 (CWA) 臺灣即時氣候觀測與氣溫/濕度互動式儀表板" />
+
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="brand-logo">🌤️</div>
+        <div>
+          <h1 class="brand-title">臺灣即時氣象預報與觀測儀表板</h1>
+          <p class="brand-subtitle">中央氣象署 OpenData API × FastAPI × Leaflet × Vercel Serverless</p>
+        </div>
+      </div>
+      <div class="header-status">
+        <span class="status-badge" id="liveStatusBadge">
+          <span class="status-dot"></span> 連線正常
+        </span>
+        <span class="obs-time" id="obsTimeDisplay">最後觀測：載入中...</span>
+      </div>
+    </header>
+
+    <!-- Filter & Control Bar -->
+    <section class="control-panel">
+      <div class="control-group">
+        <label for="regionSelect">📍 選擇地理分區 (Region)：</label>
+        <select id="regionSelect" class="form-select">
+          <option value="全臺總覽">全臺總覽 (全部 336 站)</option>
+          <option value="北部地區">北部地區</option>
+          <option value="中部地區">中部地區</option>
+          <option value="南部地區">南部地區</option>
+          <option value="東北部地區">東北部地區</option>
+          <option value="東部地區">東部地區</option>
+          <option value="東南部地區">東南部地區</option>
+          <option value="離島地區">離島地區</option>
+        </select>
+      </div>
+
+      <div class="control-group search-group">
+        <label for="stationSearch">🔍 快速搜尋測站或縣市：</label>
+        <input type="text" id="stationSearch" class="form-input" placeholder="例如：基隆、臺中、阿里山..." />
+      </div>
+
+      <div class="control-actions">
+        <button id="refreshBtn" class="btn btn-secondary">🔄 重新載入</button>
+      </div>
+    </section>
+
+    <!-- Key Metrics Cards -->
+    <section class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-icon">📊</div>
+        <div class="metric-body">
+          <span class="metric-label">觀測測站數</span>
+          <span class="metric-value" id="stationCountVal">--</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon">🌡️</div>
+        <div class="metric-body">
+          <span class="metric-label">該區平均氣溫</span>
+          <span class="metric-value" id="avgTempVal">-- °C</span>
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-icon">💧</div>
+        <div class="metric-body">
+          <span class="metric-label">平均相對濕度</span>
+          <span class="metric-value" id="avgHumVal">-- %</span>
+        </div>
+      </div>
+
+      <div class="metric-card highlight-card">
+        <div class="metric-icon">🔥</div>
+        <div class="metric-body">
+          <span class="metric-label">最高溫指標測站</span>
+          <span class="metric-value" id="hottestTempVal">-- °C</span>
+          <span class="metric-sub" id="hottestStationVal">--</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs" role="tablist">
+      <button class="tab-btn active" data-tab="tab-map">🗺️ 臺灣互動氣象地圖 (Gate 5)</button>
+      <button class="tab-btn" data-tab="tab-charts">📈 氣溫與相對濕度圖表 (Gate 4)</button>
+      <button class="tab-btn" data-tab="tab-table">📋 測站完整數據清單</button>
+    </nav>
+
+    <!-- Tab 1: Map View -->
+    <main class="tab-content-container">
+      <section id="tab-map" class="tab-pane active">
+        <div class="map-controls">
+          <div class="map-mode-selector">
+            <span class="mode-label">標記呈現模式：</span>
+            <label class="radio-label">
+              <input type="radio" name="mapMode" value="regions" checked />
+              六大分區平均總覽 (老師標準樣式)
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="mapMode" value="stations" />
+              全臺測站詳細點標記
+            </label>
+          </div>
+          <div class="color-legend">
+            <span class="legend-title">氣溫色階規範：</span>
+            <span class="legend-badge badge-blue">&lt; 20°C 涼冷</span>
+            <span class="legend-badge badge-green">20 – 25°C 舒適</span>
+            <span class="legend-badge badge-yellow">25 – 30°C 偏暖</span>
+            <span class="legend-badge badge-red">&gt; 30°C 炎熱</span>
+          </div>
+        </div>
+        <div id="taiwanMap" class="map-view"></div>
+      </section>
+
+      <!-- Tab 2: Charts View -->
+      <section id="tab-charts" class="tab-pane">
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h3 class="chart-title">🌡️ 測站氣溫走勢圖 (即時氣溫、最低溫、最高溫)</h3>
+            <div class="chart-canvas-container">
+              <canvas id="tempLineChart"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3 class="chart-title">💧 測站相對濕度分析 (%)</h3>
+            <div class="chart-canvas-container">
+              <canvas id="humidityBarChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 3: Table View -->
+      <section id="tab-table" class="tab-pane">
+        <div class="table-header-actions">
+          <h3 class="table-title">📋 測站即時觀測數據明細表</h3>
+          <button id="downloadCsvBtn" class="btn btn-primary">📥 下載此區域 CSV</button>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table" id="weatherDataTable">
+            <thead>
+              <tr>
+                <th>測站代碼</th>
+                <th>測站名稱</th>
+                <th>地理分區</th>
+                <th>所屬縣市</th>
+                <th>鄉鎮區</th>
+                <th>即時氣溫 (°C)</th>
+                <th>相對濕度 (%)</th>
+                <th>當日最低溫 (°C)</th>
+                <th>當日最高溫 (°C)</th>
+                <th>觀測時間</th>
+              </tr>
+            </thead>
+            <tbody id="weatherTableBody">
+              <tr>
+                <td colspan="10" class="text-center">資料載入中...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>資料來源：<a href="https://opendata.cwa.gov.tw/" target="_blank" rel="noreferrer">交通部中央氣象署開放資料平台</a> ｜ 授權條款：政府資料開放授權條款 - 第 1 版</p>
+      <p>開發者：<code>a30099</code> ｜ 專案架構：FastAPI × Leaflet × Vercel Serverless × Streamlit</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
