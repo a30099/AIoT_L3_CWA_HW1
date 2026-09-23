@@ -8,7 +8,7 @@
 
 ## 目錄 (Table of Contents)
 - [專案簡介 (Overview)](#專案簡介-overview)
-- [目前開發成果 (Current Milestones: Gate 1 & 2)](#目前開發成果-current-milestones-gate-1--2)
+- [目前開發成果 (Current Milestones: Gate 1 ~ 4 全數完成)](#目前開發成果-current-milestones-gate-1--4-全數完成)
 - [核心功能 (Key Features)](#核心功能-key-features)
 - [系統架構 (Architecture)](#系統架構-architecture)
 - [核心技術決策 (Technical Decisions)](#核心技術決策-technical-decisions)
@@ -33,9 +33,9 @@
 
 ---
 
-## 目前開發成果 (Current Milestones: Gate 1 & 2)
+## 目前開發成果 (Current Milestones: Gate 1 ~ 4 全數完成)
 
-本專案已順利實作並驗證通過前兩大核心關卡，完整支援老師指定的**氣溫與相對濕度**雙要素處理：
+本專案已順利實作並驗證通過全部四大核心關卡與加分項目，完整支援老師指定的**氣溫與相對濕度**雙要素處理與視覺化：
 
 ### ✅ Gate 1：取得 CWA API 氣象資料 (完成度: 100%)
 * **核心檔案**：[`fetch_weather.py`](file:///c:/Users/user/Desktop/0923_HW1/fetch_weather.py)
@@ -58,14 +58,43 @@
   * **原始總測站數**：363 站
   * **有效完整測站數**：**336 站**（有效保留率高達 92.6%）
   * **成功過濾異常/缺漏站數**：27 站
-  * **六大分區有效測站分佈**：
-    * 中部地區：100 個測站
-    * 南部地區：97 個測站
-    * 北部地區：95 個測站
-    * 東南部地區：18 個測站
-    * 東北部地區：10 個測站
-    * 東部地區：9 個測站
-    * 離島地區：7 個測站
+  * **六大分區有效測站分佈**：中部 100 站、南部 97 站、北部 95 站、東南部 18 站、東北部 10 站、東部 9 站、離島 7 站。
+
+### ✅ Gate 3：存入 SQLite 資料庫與查詢驗證 (完成度: 100%)
+* **核心檔案**：[`database.py`](file:///c:/Users/user/Desktop/0923_HW1/database.py)
+* **資料庫檔案**：`data.db`（SQLite 輕量關聯式資料庫，已列入 `.gitignore` 保護）
+* **資料表設計**：`TemperatureForecasts`（包含 id, stationId, stationName, regionName, countyName, townName, dataDate, obsTime, temperature, humidity, minT, maxT, lat, lon）
+* **實作細節與驗證成果**：
+  * 批次將 336 筆清洗後之測站氣象觀測數據成功寫入 `data.db`。
+  * **驗證查詢 ① 通過 (評分 5%)**：`SELECT DISTINCT regionName FROM TemperatureForecasts;` 正確產出包含六大分區之完整清單。
+  * **驗證查詢 ② 通過 (評分 5%)**：`SELECT * FROM TemperatureForecasts WHERE regionName = '中部地區';` 精準查詢並條列該區所有測站氣溫與濕度數據。
+  * **各分區氣溫與濕度統計檢驗表**：
+
+| 分區名稱 | 有效測站數 | 平均氣溫 (°C) | 平均相對濕度 (%) | 該分區最低 ~ 最高氣溫 |
+| :--- | :---: | :---: | :---: | :---: |
+| **中部地區** | 100 站 | 27.9 °C | 68.9 % | 3.5 ~ 32.4 °C |
+| **南部地區** | 97 站 | 28.9 °C | 72.8 % | 11.3 ~ 34.1 °C |
+| **北部地區** | 95 站 | 28.7 °C | 64.1 % | 14.9 ~ 32.1 °C |
+| **東南部地區** | 18 站 | 29.7 °C | 61.8 % | 20.2 ~ 32.8 °C |
+| **東北部地區** | 10 站 | 28.1 °C | 68.0 % | 17.7 ~ 30.2 °C |
+| **東部地區** | 9 站 | 27.2 °C | 64.0 % | 8.5 ~ 30.2 °C |
+| **離島地區** | 7 站 | 28.8 °C | 71.4 % | 24.4 ~ 29.6 °C |
+
+### ✅ Gate 4：Streamlit 互動式氣象觀測 Web App (完成度: 100%)
+* **核心檔案**：[`app.py`](file:///c:/Users/user/Desktop/0923_HW1/app.py)
+* **啟動指令**：`streamlit run app.py`
+* **實作亮點與評分要求**：
+  * **下拉式選單 (評分 10%)**：支援切換「全臺總覽」以及全臺六大分區（北部、中部、南部、東北部、東部、東南部、離島地區），畫面與指標即時聯動。
+  * **SQLite 資料庫查詢 (評分 10%)**：**嚴格遵循規定，全站數據均透過 SQL 向本地 `data.db` 查詢**，絕不於前端直接呼叫外部 API。
+  * **氣溫與濕度圖表分析 (評分 15%)**：
+    * 氣溫走勢折線圖：同時呈現各測站之即時氣溫、當日最高溫與最低溫走勢。
+    * 相對濕度分析長條圖：清晰展示各測站相對濕度百分比（滿足老師「**溫度+濕度**」雙核心要求）。
+  * **詳細數據表格 (評分 15%)**：提供測站即時數據列表、關鍵字搜尋（依測站或縣市快速篩選），並支援一鍵匯出下載 CSV。
+  * **核心指標卡片 (Metric Cards)**：即時統計該區域之觀測站總數、平均氣溫、平均濕度與該區最高溫測站。
+  * **[Bonus 加分項] 互動式臺灣地圖視覺化**：
+    * 整合 `folium` 與 `streamlit-folium` 渲染互動式地圖。
+    * 依老師投影片規範之 4 級氣溫色階渲染標記（藍色 `<20°C`、綠色 `20~25°C`、黃色 `25~30°C`、紅色 `>30°C`）。
+    * 點擊任一測站標記即彈窗顯示站名、行政區、即時氣溫、相對濕度與觀測時間戳記。
 
 ---
 
@@ -159,13 +188,13 @@ cwa-windy-temperature/
 ├── .env.example               # 環境變數設定範本
 ├── .gitignore                 # 防止機密金鑰外洩
 ├── requirements.txt           # 相依套件清單 (requests, python-dotenv)
-├── fetch_weather.py           # [Gate 1] 呼叫 CWA API 自動抓取資料 (含溫度+濕度)
+├── fetch_weather.py           # [Gate 1 已完成] 呼叫 CWA API 自動抓取資料 (含溫度+濕度)
 ├── weather_raw.json           # [Gate 1 產物] 原始 363 站觀測 JSON
-├── parse_weather.py           # [Gate 2] 解析 JSON、過濾異常值與六大分區正規化
+├── parse_weather.py           # [Gate 2 已完成] 解析 JSON、過濾異常值與六大分區正規化
 ├── weather_cleaned.json       # [Gate 2 產物] 清洗後 336 站高品質結構化資料
-├── database.py                # [Gate 3 即將實作] 建立 SQLite data.db 與資料寫入
-├── app.py                     # [Gate 4 即將實作] Streamlit 互動式儀表板
-├── data.db                    # [Gate 3 預期產物] SQLite 資料庫檔案
+├── database.py                # [Gate 3 已完成] 建立 SQLite data.db 與資料寫入
+├── data.db                    # [Gate 3 產物] SQLite 資料庫 (已寫入 336 筆數據)
+├── app.py                     # [Gate 4 已完成] Streamlit 互動式儀表板 (含 Folium 地圖)
 ├── README.md                  # 專案完整說明與成果報告
 └── workflow.md                # 關卡與工作流程指南
 ```
