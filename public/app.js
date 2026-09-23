@@ -345,6 +345,32 @@ function downloadCSV() {
   URL.revokeObjectURL(url);
 }
 
+// 向中央氣象署即時同步資料
+async function syncLiveCwaData() {
+  const btn = document.getElementById("syncCwaBtn");
+  if (!btn) return;
+  const originalText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = "⏳ 正在連線氣象署抓取最新資料...";
+
+  try {
+    const res = await fetch("/api/sync");
+    const data = await res.json();
+    if (data.status === "success") {
+      alert("✅ " + data.message);
+      await fetchDashboardData();
+    } else {
+      alert("⚠️ " + (data.message || "同步失敗，使用現有快取。"));
+    }
+  } catch (err) {
+    alert("❌ 無法連線至伺服器同步端點，請確認網路連線。");
+    console.error(err);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+  }
+}
+
 // 事件綁定
 document.addEventListener("DOMContentLoaded", () => {
   // 分頁切換
@@ -367,7 +393,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // 篩選與搜尋
   document.getElementById("regionSelect").addEventListener("change", applyFilterAndRender);
   document.getElementById("stationSearch").addEventListener("input", applyFilterAndRender);
-  document.getElementById("refreshBtn").addEventListener("click", fetchDashboardData);
+  
+  const syncBtn = document.getElementById("syncCwaBtn");
+  if (syncBtn) {
+    syncBtn.addEventListener("click", syncLiveCwaData);
+  }
+
   document.getElementById("downloadCsvBtn").addEventListener("click", downloadCSV);
 
   // 地圖模式切換
@@ -378,3 +409,4 @@ document.addEventListener("DOMContentLoaded", () => {
   // 初始讀取
   fetchDashboardData();
 });
+
