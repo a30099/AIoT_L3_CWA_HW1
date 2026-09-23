@@ -4,7 +4,8 @@
 # Taiwan CWA Weather Forecast & Temperature Visualization
 > **中央氣象署 (CWA) 氣象資料觀測與即時氣溫視覺化平台**  
 > 整合 CWA OpenData API × SQLite × Streamlit × Folium (HW10 Gate 1 ~ 5 全數完成)  
-> 🌐 **Vercel 線上部署**：[https://a-io-t-l3-cwa-hw-1.vercel.app/](https://a-io-t-l3-cwa-hw-1.vercel.app/) ｜ 🎈 **Streamlit 官方部署**：[https://aiotl3cwahw1-jvkzmycjguudvwfgxvdgug.streamlit.app/](https://aiotl3cwahw1-jvkzmycjguudvwfgxvdgug.streamlit.app/)
+> 🌐 **Vercel 線上部署**：[https://a-io-t-l3-cwa-hw-1.vercel.app/](https://a-io-t-l3-cwa-hw-1.vercel.app/) ｜
+> 🎈 **Streamlit 官方部署**：[https://aiotl3cwahw1-jvkzmycjguudvwfgxvdgug.streamlit.app/](https://aiotl3cwahw1-jvkzmycjguudvwfgxvdgug.streamlit.app/)
 
 ---
 
