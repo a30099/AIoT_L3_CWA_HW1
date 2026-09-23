@@ -1,13 +1,18 @@
 """
-api/index.py - Vercel Serverless Function (FastAPI 后端服務)
+api/index.py - Vercel Serverless Function (FastAPI 後端服務)
 提供全臺氣象站即時氣溫與濕度查詢、六大分區統計與健康檢查端點。
+100% 獨立運行，無需依賴外部 parse_weather 模組。
 """
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 import json
 import os
 import sqlite3
+import requests
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 app = FastAPI(
     title="CWA Weather Forecast & Temperature API",
@@ -26,7 +31,47 @@ app.add_middleware(
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 JSON_PATH = os.path.join(BASE_DIR, "weather_cleaned.json")
+PUBLIC_JSON_PATH = os.path.join(BASE_DIR, "public", "weather_cleaned.json")
 DB_PATH = os.path.join(BASE_DIR, "data.db")
+
+# 異常代碼排除集合
+INVALID_VALUES = {"", "X", "NA", "null", "None", "-99", "-999", "-99.0", "-999.0"}
+
+# 臺灣縣市歸屬六大分區對照表
+COUNTY_TO_REGION = {
+    # 北部地區
+    "基隆市": "北部地區", "臺北市": "北部地區", "新北市": "北部地區",
+    "桃園市": "北部地區", "新竹市": "北部地區", "新竹縣": "北部地區", "苗栗縣": "北部地區",
+    # 中部地區
+    "臺中市": "中部地區", "彰化縣": "中部地區", "南投縣": "中部地區", "雲林縣": "中部地區",
+    # 南部地區
+    "嘉義市": "南部地區", "嘉義縣": "南部地區", "臺南市": "南部地區", "高雄市": "南部地區", "屏東縣": "南部地區",
+    # 東北部地區
+    "宜蘭縣": "東北部地區",
+    # 東部地區
+    "花蓮縣": "東部地區",
+    # 東南部地區
+    "臺東縣": "東南部地區",
+    # 離島地區
+    "澎湖縣": "離島地區", "金門縣": "離島地區", "連江縣": "離島地區"
+}
+
+def clean_float(value, min_val=None, max_val=None):
+    """資料清洗輔助函數：將字串轉換為浮點數並檢查範圍"""
+    if value is None:
+        return None
+    val_str = str(value).strip()
+    if val_str in INVALID_VALUES:
+        return None
+    try:
+        num = float(val_str)
+        if min_val is not None and num < min_val:
+            return None
+        if max_val is not None and num > max_val:
+            return None
+        return num
+    except (ValueError, TypeError):
+        return None
 
 # 全域記憶體快取
 LIVE_CACHE = {
@@ -36,23 +81,36 @@ LIVE_CACHE = {
 
 def fetch_live_cwa_data():
     """直接向 CWA API 抓取並即時清洗最新資料"""
-    import urllib.request
-    import ssl
-    
     api_key = os.getenv("CWA_API_KEY", "CWA-C6BED603-E999-4639-B11C-67142ED3C8D6")
     url = os.getenv("CWA_DATA_URL", "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0003-001")
     
-    req = urllib.request.Request(url, headers={"Authorization": api_key})
-    ctx = ssl._create_unverified_context()
+    headers = {
+        "Authorization": api_key,
+        "User-Agent": "Mozilla/5.0 (compatible; CWA-Dashboard/1.0)"
+    }
     
-    with urllib.request.urlopen(req, context=ctx, timeout=15) as res:
-        data = json.loads(res.read().decode("utf-8"))
-    
-    # 即時清洗
+    data = None
+    try:
+        resp = requests.get(url, headers=headers, timeout=12, verify=False)
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as req_err:
+        import urllib.request
+        import ssl
+        req = urllib.request.Request(url, headers=headers)
+        ctx = ssl._create_unverified_context()
+        with urllib.request.urlopen(req, context=ctx, timeout=12) as res:
+            data = json.loads(res.read().decode("utf-8"))
+
+    if not data or "records" not in data:
+        raise ValueError("CWA API 回傳格式錯誤或無 records 欄位")
+
     stations = data.get("records", {}).get("Station", [])
-    from parse_weather import COUNTY_TO_REGION, clean_float
-    
+    if not stations:
+        raise ValueError("CWA API 回傳之 Station 測站列表為空")
+
     cleaned = []
+    obs_time_raw = ""
     for st in stations:
         st_id = st.get("StationId")
         st_name = st.get("StationName")
@@ -104,7 +162,7 @@ def fetch_live_cwa_data():
             "lat": lat,
             "lon": lon
         })
-    
+
     LIVE_CACHE["stations"] = cleaned
     LIVE_CACHE["last_sync"] = obs_time_raw
     return cleaned
@@ -122,12 +180,13 @@ def load_all_records():
     except Exception:
         pass
 
-    if os.path.exists(JSON_PATH):
-        try:
-            with open(JSON_PATH, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
+    for path in [JSON_PATH, PUBLIC_JSON_PATH]:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
 
     if os.path.exists(DB_PATH):
         try:
@@ -150,6 +209,21 @@ def load_all_records():
     return []
 
 
+# -------------------------------------------------------------
+# 路由註冊 (同時支援 /api/* 與 /* 避免 Vercel Rewrite 路由剝除)
+# -------------------------------------------------------------
+
+@app.get("/")
+@app.get("/api")
+def root_info():
+    return {
+        "service": "CWA Weather Dashboard API",
+        "status": "online",
+        "endpoints": ["/api/health", "/api/weather", "/api/regions", "/api/sync"]
+    }
+
+
+@app.get("/health")
 @app.get("/api/health")
 def health_check():
     """健康狀態檢查端點"""
@@ -162,6 +236,7 @@ def health_check():
     }
 
 
+@app.get("/regions")
 @app.get("/api/regions")
 def get_region_summary():
     """取得六大分區氣溫與濕度統計摘要"""
@@ -174,7 +249,7 @@ def get_region_summary():
         reg = r.get("region_name", "其他分區")
         if reg not in grouped:
             grouped[reg] = {
-                "region_name": reg,
+                "regionName": reg,
                 "stations": 0,
                 "temps": [],
                 "hums": [],
@@ -214,6 +289,7 @@ def get_region_summary():
     return {"regions": result}
 
 
+@app.get("/weather")
 @app.get("/api/weather")
 def get_weather(region: str | None = None):
     """取得全臺或特定分區之測站觀測資料"""
@@ -228,6 +304,8 @@ def get_weather(region: str | None = None):
     }
 
 
+@app.get("/sync")
+@app.post("/sync")
 @app.get("/api/sync")
 @app.post("/api/sync")
 def sync_weather():
@@ -241,9 +319,9 @@ def sync_weather():
             "last_sync": LIVE_CACHE.get("last_sync")
         }
     except Exception as e:
+        cached_count = len(load_all_records())
         return {
             "status": "error",
-            "message": f"同步失敗: {str(e)}，將維持現有快取資料。",
-            "count": len(load_all_records())
+            "message": f"同步失敗: {str(e)}",
+            "count": cached_count
         }
-

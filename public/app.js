@@ -21,13 +21,17 @@ function getTempColor(temp) {
 // 取得資料
 async function fetchDashboardData() {
   try {
-    const [weatherRes, regionsRes] = await Promise.all([
-      fetch("/api/weather"),
-      fetch("/api/regions")
-    ]);
+    let weatherRes = await fetch("/api/weather");
+    let regionsRes = await fetch("/api/regions");
+
+    // 若 /api 前綴被去除，嘗試備援路徑
+    if (weatherRes.status === 404 || regionsRes.status === 404) {
+      weatherRes = await fetch("/weather");
+      regionsRes = await fetch("/regions");
+    }
 
     if (!weatherRes.ok || !regionsRes.ok) {
-      throw new Error("API 響應異常");
+      throw new Error(`API 響應異常 (HTTP ${weatherRes.status}/${regionsRes.status})`);
     }
 
     const weatherData = await weatherRes.json();
@@ -38,7 +42,7 @@ async function fetchDashboardData() {
 
     document.getElementById("liveStatusBadge").innerHTML = '<span class="status-dot"></span> 連線正常 (Vercel API)';
   } catch (err) {
-    console.warn("無法取得 /api 端點資料，嘗試讀取靜態 weather_cleaned.json 備援...", err);
+    console.warn("無法取得 API 端點資料，嘗試讀取靜態 weather_cleaned.json 備援...", err);
     try {
       const fallbackRes = await fetch("weather_cleaned.json");
       if (fallbackRes.ok) {
@@ -354,7 +358,22 @@ async function syncLiveCwaData() {
   btn.innerHTML = "⏳ 正在連線氣象署抓取最新資料...";
 
   try {
-    const res = await fetch("/api/sync");
+    let res = await fetch("/api/sync");
+    if (res.status === 404) {
+      res = await fetch("/sync");
+    }
+
+    if (!res.ok) {
+      let errMsg = `伺服器回應異常 (HTTP ${res.status})`;
+      try {
+        const errJson = await res.json();
+        if (errJson.detail) errMsg += `: ${errJson.detail}`;
+        else if (errJson.message) errMsg = errJson.message;
+      } catch (e) {}
+      alert(`⚠️ ${errMsg}，使用現有快取。`);
+      return;
+    }
+
     const data = await res.json();
     if (data.status === "success") {
       alert("✅ " + data.message);
@@ -363,7 +382,7 @@ async function syncLiveCwaData() {
       alert("⚠️ " + (data.message || "同步失敗，使用現有快取。"));
     }
   } catch (err) {
-    alert("❌ 無法連線至伺服器同步端點，請確認網路連線。");
+    alert("❌ 無法連線至伺服器同步端點：" + err.message);
     console.error(err);
   } finally {
     btn.disabled = false;
