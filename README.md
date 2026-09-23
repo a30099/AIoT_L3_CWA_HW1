@@ -1,7 +1,8 @@
 🔗 **線上即時展示網址 (Vercel Live Demo)**：https://a-io-t-l3-cwa-hw-1.vercel.app/
 🎈 **線上即時展示網址 (Streamlit Cloud)**：https://aiotl3cwahw1-jvkzmycjguudvwfgxvdgug.streamlit.app/
-
 # Taiwan CWA Weather Forecast & Temperature Visualization
+## 7115056039 
+## 張嘉晏
 > **中央氣象署 (CWA) 氣象資料觀測與即時氣溫視覺化平台**  
 > 整合 CWA OpenData API × SQLite × Streamlit × Folium (HW10 Gate 1 ~ 5 全數完成)  
 > 🌐 **Vercel 線上部署**：[https://a-io-t-l3-cwa-hw-1.vercel.app/](https://a-io-t-l3-cwa-hw-1.vercel.app/) ｜
